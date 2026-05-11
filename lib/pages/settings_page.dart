@@ -2,16 +2,29 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'main_screen.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class SettingsPage extends StatefulWidget {
+  final String username;
+  final int userId;
+
+  const SettingsPage({
+    super.key,
+    required this.username,
+    required this.userId,
+  });
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+class _SettingsPageState extends State<SettingsPage> {
+  late TextEditingController _usernameController;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.username);
+  }
 
   @override
   void dispose() {
@@ -19,10 +32,10 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _login() async {
-    final username = _usernameController.text.trim();
+  Future<void> _saveSettings() async {
+    final newUsername = _usernameController.text.trim();
 
-    if (username.isEmpty) {
+    if (newUsername.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez saisir un nom d\'utilisateur')),
       );
@@ -32,17 +45,17 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      final userId = await ApiService.checkUserExists(username);
+      final newUserId = await ApiService.checkUserExists(newUsername);
 
       if (!mounted) return;
 
-      if (userId != null) {
+      if (newUserId != null) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => MainScreen(
-              username: username,
-              userId: userId,
+              username: newUsername,
+              userId: newUserId,
             ),
           ),
         );
@@ -68,13 +81,12 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Connexion'),
+        title: const Text('Settings'),
         automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextField(
               controller: _usernameController,
@@ -85,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _isLoading ? null : _login,
+              onPressed: _isLoading ? null : _saveSettings,
               child: _isLoading
                   ? const SizedBox(
                       height: 24,
@@ -95,7 +107,7 @@ class _LoginPageState extends State<LoginPage> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text('Se connecter'),
+                  : const Text('Changer de compte'),
             ),
           ],
         ),

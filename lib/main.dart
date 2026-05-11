@@ -11,13 +11,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Extrema LineUp',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: const LoginPage(),
-      debugShowCheckedModeBanner: false,
+      title: 'Extremalineup',
+      theme: ThemeData.dark(), // Thème sombre par défaut
+      home: const LoginPage(), // ✅ Page de login en premier
     );
   }
 }

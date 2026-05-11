@@ -1,0 +1,22 @@
+name: extrema_lineup_mobileapp  # Nom de ton appli (sans espaces, en snake_case)
+description: Une appli pour consulter le lineup de l'événement Extrema.
+
+# Version de l'appli (format : major.minor.patch)
+version: 1.0.0+1
+
+environment:
+  sdk: '^3.11.0'  # Version du SDK Dart compatible
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  intl: ^0.20.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2  # Pour les bonnes pratiques de code
+
+flutter:
+  uses-material-design: true  # Active les widgets Material Design

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/timetable_item.dart';
-import '../services/api_service.dart';
+import '../services/app_data_manager.dart';
 import '../widgets/favorite_star.dart';
+import '../utils/utils.dart';
 
 // --- Constants ---
 class _TimetableConstants {
@@ -38,53 +39,38 @@ class TimetablePage extends StatefulWidget {
 
 // --- State ---
 class _TimetablePageState extends State<TimetablePage> {
-  late Future<List<TimetableItem>> _timetableFuture;
-  Set<int> _favoriteSetIds = {};
-  String _selectedDay = 'friday';
   final List<String> _days = const ['friday', 'saturday', 'sunday'];
-  bool _showFavoritesOnly = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _timetableFuture = ApiService.fetchTimetable();
-    _loadFavorites();
+  void _toggleFavorite(TimetableItem item) {
+    AppDataManager().toggleFavorite(item.setId);
+    setState(() => item.isFavorite = AppDataManager().favoriteSetIds.contains(item.setId));
   }
 
-  // --- Data Loading ---
-  Future<void> _loadFavorites() async {
-    try {
-      final favorites = await ApiService.fetchFavorites(widget.userId);
-      if (mounted) {
-        setState(() => _favoriteSetIds = favorites);
-      }
-    } catch (e) {
-      debugPrint('Erreur lors du chargement des favoris: $e');
+  void _onDayChanged(String? newValue) {
+    if (newValue != null) {
+      AppDataManager().setSelectedDay(newValue);
+      setState(() {});
     }
   }
 
-  Future<void> _saveFavorites() async {
-    try {
-      await ApiService.saveFavorites(widget.userId, _favoriteSetIds);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Favoris sauvegardés !')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: ${e.toString()}')),
-        );
-      }
-    }
+  void _onShowFavoritesOnlyChanged(bool value) {
+    AppDataManager().setShowFavoritesOnly(value);
+    setState(() {});
+  }
+
+  String _getDayName(String day) {
+    return AppUtils.getDayName(day);
   }
 
   // --- Business Logic ---
   List<TimetableItem> _getFilteredItems(List<TimetableItem> timetable) {
-    final filteredByDay = timetable.where((item) => item.day == _selectedDay).toList();
-    return _showFavoritesOnly
-        ? filteredByDay.where((item) => _favoriteSetIds.contains(item.setId)).toList()
+    final selectedDay = AppDataManager().selectedDay;
+    final showFavoritesOnly = AppDataManager().showFavoritesOnly;
+    final favoriteSetIds = AppDataManager().favoriteSetIds;
+
+    final filteredByDay = timetable.where((item) => item.day == selectedDay).toList();
+    return showFavoritesOnly
+        ? filteredByDay.where((item) => favoriteSetIds.contains(item.setId)).toList()
         : filteredByDay;
   }
 
@@ -106,51 +92,31 @@ class _TimetablePageState extends State<TimetablePage> {
   }
 
   void _updateFavoriteStatus(List<TimetableItem> timetable) {
+    final favoriteSetIds = AppDataManager().favoriteSetIds;
     for (var item in timetable) {
-      item.isFavorite = _favoriteSetIds.contains(item.setId);
-    }
-  }
-
-  void _toggleFavorite(TimetableItem item) {
-    setState(() {
-      if (_favoriteSetIds.contains(item.setId)) {
-        _favoriteSetIds.remove(item.setId);
-      } else {
-        _favoriteSetIds.add(item.setId);
-      }
-      item.isFavorite = _favoriteSetIds.contains(item.setId);
-    });
-  }
-
-  String _getDayName(String day) {
-    switch (day.toLowerCase()) {
-      case 'friday': return 'Vendredi';
-      case 'saturday': return 'Samedi';
-      case 'sunday': return 'Dimanche';
-      default: return day;
+      item.isFavorite = favoriteSetIds.contains(item.setId);
     }
   }
 
   // --- Widgets ---
   Widget _buildControls() {
+    final selectedDay = AppDataManager().selectedDay;
+    final showFavoritesOnly = AppDataManager().showFavoritesOnly;
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
         children: [
           Expanded(
             child: DropdownButton<String>(
-              value: _selectedDay,
+              value: selectedDay,
               items: _days.map((day) {
                 return DropdownMenuItem<String>(
                   value: day,
                   child: Text(_getDayName(day)),
                 );
               }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() => _selectedDay = newValue);
-                }
-              },
+              onChanged: _onDayChanged,
               hint: const Text('Choisir un jour'),
             ),
           ),
@@ -159,8 +125,8 @@ class _TimetablePageState extends State<TimetablePage> {
             children: [
               const Text('Favoris uniquement', style: TextStyle(color: Colors.white)),
               Switch(
-                value: _showFavoritesOnly,
-                onChanged: (bool value) => setState(() => _showFavoritesOnly = value),
+                value: showFavoritesOnly,
+                onChanged: _onShowFavoritesOnlyChanged,
                 activeThumbColor: const Color(0xFF7851A9),
               ),
             ],
@@ -246,90 +212,76 @@ class _TimetablePageState extends State<TimetablePage> {
   // --- Build ---
   @override
   Widget build(BuildContext context) {
+    final timetable = AppDataManager().timetable;
+    _updateFavoriteStatus(timetable);
+
+    final displayItems = _getFilteredItems(timetable);
+    if (displayItems.isEmpty) {
+      return Scaffold(
+        backgroundColor: Colors.grey[900],
+        appBar: AppBar(
+          title: Text('Timetable - ${widget.username}'),
+        ),
+        body: _buildEmptyState(),
+      );
+    }
+
+    final minStartTime = _getMinStartTime(displayItems);
+    final maxEndTime = _getMaxEndTime(displayItems);
+    final totalWidth = maxEndTime.difference(minStartTime).inMinutes * _TimetableConstants.pixelsPerMinute;
+    final offsetInPixels = _calculateOffset(minStartTime);
+
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
         title: Text('Timetable - ${widget.username}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _saveFavorites,
-            tooltip: 'Sauvegarder les favoris',
-          ),
-        ],
       ),
-      body: FutureBuilder<List<TimetableItem>>(
-        future: _timetableFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Erreur: ${snapshot.error}'));
-          }
-
-          final timetable = snapshot.data!;
-          _updateFavoriteStatus(timetable);
-
-          final displayItems = _getFilteredItems(timetable);
-          if (displayItems.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          final minStartTime = _getMinStartTime(displayItems);
-          final maxEndTime = _getMaxEndTime(displayItems);
-          final totalWidth = maxEndTime.difference(minStartTime).inMinutes * _TimetableConstants.pixelsPerMinute;
-          final offsetInPixels = _calculateOffset(minStartTime);
-
-          return Column(
-            children: [
-              _buildControls(),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: totalWidth,
-                      child: Stack(
+      body: Column(
+        children: [
+          _buildControls(),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: totalWidth,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: _TimetableConstants.timeScaleHeight,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _buildRegularVerticalLines(totalWidth, offsetInPixels),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Positioned(
-                            top: _TimetableConstants.timeScaleHeight,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _buildRegularVerticalLines(totalWidth, offsetInPixels),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildTimeScale(minStartTime, maxEndTime, offsetInPixels),
-                              const SizedBox(height: 10),
-                              _showFavoritesOnly
-                                  ? _TimetableFavoritesView(
-                                      items: displayItems,
-                                      totalWidth: totalWidth,
-                                      minStartTime: minStartTime,
-                                      favoriteSetIds: _favoriteSetIds,
-                                      onToggleFavorite: _toggleFavorite,
-                                    )
-                                  : _TimetableDistrictView(
-                                      items: displayItems,
-                                      totalWidth: totalWidth,
-                                      minStartTime: minStartTime,
-                                      favoriteSetIds: _favoriteSetIds,
-                                      onToggleFavorite: _toggleFavorite,
-                                    ),
-                            ],
-                          ),
+                          _buildTimeScale(minStartTime, maxEndTime, offsetInPixels),
+                          const SizedBox(height: 10),
+                          AppDataManager().showFavoritesOnly
+                              ? _TimetableFavoritesView(
+                                  items: displayItems,
+                                  totalWidth: totalWidth,
+                                  minStartTime: minStartTime,
+                                  onToggleFavorite: _toggleFavorite,
+                                )
+                              : _TimetableDistrictView(
+                                  items: displayItems,
+                                  totalWidth: totalWidth,
+                                  minStartTime: minStartTime,
+                                  onToggleFavorite: _toggleFavorite,
+                                ),
                         ],
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -375,7 +327,7 @@ class _DjCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
+                      '${AppUtils.formatTime(item.startTime)} - ${AppUtils.formatTime(item.endTime)}',
                       style: _TimetableConstants.timeTextStyle,
                       maxLines: 1,
                     ),
@@ -401,10 +353,6 @@ class _DjCard extends StatelessWidget {
       ),
     );
   }
-
-  String _formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 }
 
 class _TimetableDistrictRow extends StatelessWidget {
@@ -412,7 +360,6 @@ class _TimetableDistrictRow extends StatelessWidget {
   final List<TimetableItem> items;
   final double totalWidth;
   final DateTime minStartTime;
-  final Set<int> favoriteSetIds;
   final void Function(TimetableItem) onToggleFavorite;
 
   const _TimetableDistrictRow({
@@ -420,7 +367,6 @@ class _TimetableDistrictRow extends StatelessWidget {
     required this.items,
     required this.totalWidth,
     required this.minStartTime,
-    required this.favoriteSetIds,
     required this.onToggleFavorite,
   });
 
@@ -449,7 +395,7 @@ class _TimetableDistrictRow extends StatelessWidget {
                 left: left,
                 child: _DjCard(
                   item: item,
-                  isFavorite: favoriteSetIds.contains(item.setId),
+                  isFavorite: AppDataManager().favoriteSetIds.contains(item.setId),
                   onToggleFavorite: () => onToggleFavorite(item),
                   width: width,
                   height: _TimetableConstants.normalTileHeight,
@@ -467,14 +413,12 @@ class _TimetableDistrictView extends StatelessWidget {
   final List<TimetableItem> items;
   final double totalWidth;
   final DateTime minStartTime;
-  final Set<int> favoriteSetIds;
   final void Function(TimetableItem) onToggleFavorite;
 
   const _TimetableDistrictView({
     required this.items,
     required this.totalWidth,
     required this.minStartTime,
-    required this.favoriteSetIds,
     required this.onToggleFavorite,
   });
 
@@ -488,7 +432,6 @@ class _TimetableDistrictView extends StatelessWidget {
           items: entry.value,
           totalWidth: totalWidth,
           minStartTime: minStartTime,
-          favoriteSetIds: favoriteSetIds,
           onToggleFavorite: onToggleFavorite,
         );
       }).toList(),
@@ -508,14 +451,12 @@ class _TimetableFavoritesView extends StatelessWidget {
   final List<TimetableItem> items;
   final double totalWidth;
   final DateTime minStartTime;
-  final Set<int> favoriteSetIds;
   final void Function(TimetableItem) onToggleFavorite;
 
   const _TimetableFavoritesView({
     required this.items,
     required this.totalWidth,
     required this.minStartTime,
-    required this.favoriteSetIds,
     required this.onToggleFavorite,
   });
 
@@ -538,7 +479,7 @@ class _TimetableFavoritesView extends StatelessWidget {
                 left: left,
                 child: _DjCard(
                   item: item,
-                  isFavorite: favoriteSetIds.contains(item.setId),
+                  isFavorite: AppDataManager().favoriteSetIds.contains(item.setId),
                   onToggleFavorite: () => onToggleFavorite(item),
                   width: width,
                   height: _TimetableConstants.favoriteTileHeight,

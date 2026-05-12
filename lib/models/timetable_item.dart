@@ -10,6 +10,10 @@ class TimetableItem {
   final DateTime startTime;
   final DateTime endTime;
   bool isFavorite;
+  final String? bio;
+  final String? spotifyLink;
+  final String? soundcloudLink;
+  final String? instagramLink;
 
   TimetableItem({
     required this.setId,
@@ -21,6 +25,10 @@ class TimetableItem {
     required this.startTime,
     required this.endTime,
     this.isFavorite = false,
+    this.bio,
+    this.spotifyLink,
+    this.soundcloudLink,
+    this.instagramLink,
   });
 
   // Méthode pour convertir en Map (sérialisation)
@@ -32,9 +40,13 @@ class TimetableItem {
       'stage': stage,
       'day': day,
       'day_int': dayInt,
-      'start_time': startTime.toIso8601String(), // Convertit DateTime en String
+      'start_time': startTime.toIso8601String(),
       'end_time': endTime.toIso8601String(),
       'is_favorite': isFavorite,
+      'bio': bio,
+      'spotify_link': spotifyLink,
+      'soundcloud_link': soundcloudLink,
+      'instagram_link': instagramLink,
     };
   }
 
@@ -65,6 +77,10 @@ class TimetableItem {
       startTime: parseDateTime(json['start_time'] ?? json['startTime']),
       endTime: parseDateTime(json['end_time'] ?? json['endTime']),
       isFavorite: json['is_favorite'] ?? json['isFavorite'] ?? false,
+      bio: json['bio'],
+      spotifyLink: json['spotify_link'] ?? json['spotifyLink'],
+      soundcloudLink: json['soundcloud_link'] ?? json['soundcloudLink'],
+      instagramLink: json['instagram_link'] ?? json['instagramLink'],
     );
   }
 }

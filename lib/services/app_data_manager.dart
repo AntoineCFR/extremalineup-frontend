@@ -38,19 +38,6 @@ class AppDataManager {
     }
   }
 
-  // Affiche un message de succès
-  void _showSuccessMessage(String message) {
-    if (_scaffoldMessengerKey?.currentState != null) {
-      _scaffoldMessengerKey!.currentState!.showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   // Getters
   List<TimetableItem> get timetable => _timetable;
   Set<int> get favoriteSetIds => _favoriteSetIds;
@@ -102,7 +89,6 @@ class AppDataManager {
     if (_userId != null) {
       try {
         await ApiService.saveFavorites(_userId!, _favoriteSetIds);
-        _showSuccessMessage('Favori mis à jour !');
       } catch (e) {
         _showErrorMessage('Impossible de synchroniser avec le serveur. Les données sont sauvegardées localement.');
       }

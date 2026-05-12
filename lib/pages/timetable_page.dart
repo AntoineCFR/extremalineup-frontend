@@ -220,7 +220,7 @@ class _TimetablePageState extends State<TimetablePage> {
       return Scaffold(
         backgroundColor: Colors.grey[900],
         appBar: AppBar(
-          title: Text('Timetable - ${widget.username}'),
+          title: const Text('Timetable'),
         ),
         body: _buildEmptyState(),
       );
@@ -234,7 +234,7 @@ class _TimetablePageState extends State<TimetablePage> {
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
-        title: Text('Timetable - ${widget.username}'),
+        title: const Text('Timetable'),
       ),
       body: Column(
         children: [

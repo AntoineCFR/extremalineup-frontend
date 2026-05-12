@@ -1,6 +1,8 @@
+// lib/pages/main_screen.dart
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_page.dart';
+import 'home_page.dart'; // ✅ Nouveau import
 import 'lineup_page.dart';
 import 'timetable_page.dart';
 
@@ -19,7 +21,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0; // 0: Line-up, 1: Timetable
+  int _currentIndex = 0; // 0: Accueil, 1: Line-up, 2: Timetable
   final PageController _pageController = PageController(initialPage: 0);
 
   @override
@@ -41,8 +43,17 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Extremalineup - ${widget.username}'),
+        title: const Text('Extrema Outdoor 2026'), // ✅ Titre mis à jour
         actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: Center(
+              child: Text(
+                widget.username,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
@@ -58,6 +69,7 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         children: [
+          HomePage(username: widget.username, userId: widget.userId), // ✅ Nouvelle page
           LineupPage(username: widget.username, userId: widget.userId),
           TimetablePage(username: widget.username, userId: widget.userId),
         ],
@@ -71,6 +83,10 @@ class _MainScreenState extends State<MainScreen> {
           _pageController.jumpToPage(index);
         },
         items: const [
+          BottomNavigationBarItem( // ✅ Nouveau bouton
+            icon: Icon(Icons.home),
+            label: 'Accueil',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.queue_music),
             label: 'Line-up',

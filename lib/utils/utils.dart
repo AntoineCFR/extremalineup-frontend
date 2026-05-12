@@ -13,7 +13,8 @@ class AppUtils {
   }
 
   static String formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final localDate = date.toLocal();
+    return '${localDate.hour.toString().padLeft(2, '0')}:${localDate.minute.toString().padLeft(2, '0')}';
   }
 
   static String getDjImagePath(String djName) {
@@ -23,5 +24,14 @@ class AppUtils {
         .replaceAll('.', '')
         .replaceAll(RegExp(r'[^\w]'), '');
     return 'lib/assets/$normalized.jpg';
+  }
+
+  static String formatFullDate(DateTime date) {
+    final days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    final months = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+    return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
   }
 }

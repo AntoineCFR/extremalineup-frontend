@@ -3,6 +3,7 @@ import '../models/timetable_item.dart';
 import '../services/app_data_manager.dart';
 import '../widgets/favorite_star.dart';
 import '../utils/utils.dart';
+import 'djprofilepage.dart'; // Import de la page DJProfilePage
 
 class LineupPage extends StatefulWidget {
   final String username;
@@ -38,6 +39,76 @@ class _LineupPageState extends State<LineupPage> {
     setState(() {});
   }
 
+  // Fonction pour construire une tuile DJ (réutilisée pour les deux modes d'affichage)
+  Widget _buildDjTile(TimetableItem item, BuildContext context) {
+    final favoriteSetIds = AppDataManager().favoriteSetIds;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: favoriteSetIds.contains(item.setId) ? const Color(0xFF7851A9) : null,
+      child: ListTile(
+        onTap: () {
+          // Navigation vers la fiche DJ avec les données nécessaires
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DJProfilePage(
+                djData: {
+                  'name': item.dj,
+                  'bio': item.bio, // Assure-toi que TimetableItem a un champ 'bio'
+                  'spotify_link': item.spotifyLink, // Champ 'spotifyLink' dans TimetableItem
+                  'soundcloud_link': item.soundcloudLink, // Champ 'soundcloudLink'
+                  'instagram_link': item.instagramLink, // Champ 'instagramLink'
+                  'image_link': AppUtils.getDjImagePath(item.dj), // Chemin local
+                },
+              ),
+            ),
+          );
+        },
+        leading: AspectRatio(
+          aspectRatio: 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4.0),
+            child: Image.asset(
+              AppUtils.getDjImagePath(item.dj),
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.person, color: Colors.white54),
+            ),
+          ),
+        ),
+        title: Text(
+          item.dj,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${AppUtils.formatTime(item.startTime)} - ${AppUtils.formatTime(item.endTime)}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            if (!AppDataManager().showFavoritesOnly)
+              Text(
+                item.district,
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                ),
+              ),
+          ],
+        ),
+        trailing: FavoriteStar(
+          isFavorite: favoriteSetIds.contains(item.setId),
+          onPressed: () => _toggleFavorite(item),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedDay = AppDataManager().selectedDay;
@@ -45,33 +116,30 @@ class _LineupPageState extends State<LineupPage> {
     final showFavoritesOnly = AppDataManager().showFavoritesOnly;
     final timetable = AppDataManager().timetable;
 
-    // Filtre la timetable par jour sélectionné
     final filteredTimetable = timetable.where((item) => item.day == selectedDay).toList();
     final displayItems = showFavoritesOnly
         ? filteredTimetable.where((item) => favoriteSetIds.contains(item.setId)).toList()
         : filteredTimetable;
 
     // Tri des items
-    if (showFavoritesOnly) {
-      displayItems.sort((a, b) {
+    displayItems.sort((a, b) {
+      if (showFavoritesOnly) {
         int startCompare = a.startTime.compareTo(b.startTime);
         if (startCompare != 0) return startCompare;
         int endCompare = a.endTime.compareTo(b.endTime);
         if (endCompare != 0) return endCompare;
         return a.district.compareTo(b.district);
-      });
-    } else {
-      displayItems.sort((a, b) {
+      } else {
         int districtCompare = a.district.compareTo(b.district);
         if (districtCompare != 0) return districtCompare;
         return a.startTime.compareTo(b.startTime);
-      });
-    }
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.grey[900],
       appBar: AppBar(
-        title: Text('Line-up - ${widget.username}'),
+        title: const Text('Line-up'),
       ),
       body: Column(
         children: [
@@ -116,56 +184,7 @@ class _LineupPageState extends State<LineupPage> {
                   const Center(child: Text('Aucun DJ à afficher.')),
                 showFavoritesOnly
                     ? Column(
-                        children: displayItems.map((item) {
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            color: favoriteSetIds.contains(item.setId)
-                                ? const Color(0xFF7851A9)
-                                : null,
-                            child: ListTile(
-                              leading: AspectRatio(
-                                aspectRatio: 1,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(4.0),
-                                  child: Image.asset(
-                                    AppUtils.getDjImagePath(item.dj),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(Icons.person, color: Colors.white54),
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                item.dj,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${AppUtils.formatTime(item.startTime)} - ${AppUtils.formatTime(item.endTime)}',
-                                    style: const TextStyle(color: Colors.white70),
-                                  ),
-                                  Text(
-                                    item.district,
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: FavoriteStar(
-                                isFavorite: favoriteSetIds.contains(item.setId),
-                                onPressed: () => _toggleFavorite(item),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                        children: displayItems.map((item) => _buildDjTile(item, context)).toList(),
                       )
                     : Column(
                         children: [
@@ -187,44 +206,7 @@ class _LineupPageState extends State<LineupPage> {
                                     ),
                                   ),
                                 ),
-                                ...districtEntry.value.map((item) {
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    color: favoriteSetIds.contains(item.setId)
-                                        ? const Color(0xFF7851A9)
-                                        : null,
-                                    child: ListTile(
-                                      leading: AspectRatio(
-                                        aspectRatio: 1,
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(4.0),
-                                          child: Image.asset(
-                                            AppUtils.getDjImagePath(item.dj),
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) =>
-                                                const Icon(Icons.person, color: Colors.white54),
-                                          ),
-                                        ),
-                                      ),
-                                      title: Text(
-                                        item.dj,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        '${AppUtils.formatTime(item.startTime)} - ${AppUtils.formatTime(item.endTime)}',
-                                        style: const TextStyle(color: Colors.white70),
-                                      ),
-                                      trailing: FavoriteStar(
-                                        isFavorite: favoriteSetIds.contains(item.setId),
-                                        onPressed: () => _toggleFavorite(item),
-                                      ),
-                                    ),
-                                  );
-                                }),
+                                ...districtEntry.value.map((item) => _buildDjTile(item, context)),
                               ],
                             ),
                         ],

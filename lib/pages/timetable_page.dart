@@ -3,21 +3,8 @@ import '../models/timetable_item.dart';
 import '../services/api_service.dart';
 import '../widgets/favorite_star.dart';
 
-class TimetablePage extends StatefulWidget {
-  final String username;
-  final int userId;
-
-  const TimetablePage({
-    super.key,
-    required this.username,
-    required this.userId,
-  });
-
-  @override
-  State<TimetablePage> createState() => _TimetablePageState();
-}
-
-class _TimetablePageState extends State<TimetablePage> {
+// --- Constants ---
+class _TimetableConstants {
   static const double pixelsPerMinute = 3.0;
   static const double pixelsPerHour = pixelsPerMinute * 60;
   static const double normalTileHeight = 63.0;
@@ -32,7 +19,25 @@ class _TimetablePageState extends State<TimetablePage> {
   static const TextStyle timeTextStyle = TextStyle(fontSize: 12, color: Colors.white70);
   static const TextStyle districtTextStyle = TextStyle(fontSize: 12, color: Colors.white);
   static const TextStyle districtSubtitleStyle = TextStyle(fontSize: 12, color: Colors.white54);
+}
 
+// --- Main Widget ---
+class TimetablePage extends StatefulWidget {
+  final String username;
+  final int userId;
+
+  const TimetablePage({
+    super.key,
+    required this.username,
+    required this.userId,
+  });
+
+  @override
+  State<TimetablePage> createState() => _TimetablePageState();
+}
+
+// --- State ---
+class _TimetablePageState extends State<TimetablePage> {
   late Future<List<TimetableItem>> _timetableFuture;
   Set<int> _favoriteSetIds = {};
   String _selectedDay = 'friday';
@@ -46,17 +51,12 @@ class _TimetablePageState extends State<TimetablePage> {
     _loadFavorites();
   }
 
-  DateTime _nextFullHour(DateTime date) {
-    return date.minute == 0 ? date : DateTime(date.year, date.month, date.day, date.hour + 1);
-  }
-
+  // --- Data Loading ---
   Future<void> _loadFavorites() async {
     try {
       final favorites = await ApiService.fetchFavorites(widget.userId);
       if (mounted) {
-        setState(() {
-          _favoriteSetIds = favorites;
-        });
+        setState(() => _favoriteSetIds = favorites);
       }
     } catch (e) {
       debugPrint('Erreur lors du chargement des favoris: $e');
@@ -80,17 +80,35 @@ class _TimetablePageState extends State<TimetablePage> {
     }
   }
 
-  String _getDayName(String day) {
-    switch (day.toLowerCase()) {
-      case 'friday': return 'Vendredi';
-      case 'saturday': return 'Samedi';
-      case 'sunday': return 'Dimanche';
-      default: return day;
-    }
+  // --- Business Logic ---
+  List<TimetableItem> _getFilteredItems(List<TimetableItem> timetable) {
+    final filteredByDay = timetable.where((item) => item.day == _selectedDay).toList();
+    return _showFavoritesOnly
+        ? filteredByDay.where((item) => _favoriteSetIds.contains(item.setId)).toList()
+        : filteredByDay;
   }
 
-  String _formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  DateTime _getMinStartTime(List<TimetableItem> items) {
+    return items.map((item) => item.startTime).reduce((a, b) => a.isBefore(b) ? a : b);
+  }
+
+  DateTime _getMaxEndTime(List<TimetableItem> items) {
+    return items.map((item) => item.endTime).reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  DateTime _nextFullHour(DateTime date) {
+    return date.minute == 0 ? date : DateTime(date.year, date.month, date.day, date.hour + 1);
+  }
+
+  double _calculateOffset(DateTime minStartTime) {
+    final nextFullHour = _nextFullHour(minStartTime);
+    return nextFullHour.difference(minStartTime).inMinutes * _TimetableConstants.pixelsPerMinute;
+  }
+
+  void _updateFavoriteStatus(List<TimetableItem> timetable) {
+    for (var item in timetable) {
+      item.isFavorite = _favoriteSetIds.contains(item.setId);
+    }
   }
 
   void _toggleFavorite(TimetableItem item) {
@@ -104,69 +122,90 @@ class _TimetablePageState extends State<TimetablePage> {
     });
   }
 
-  bool _hasOverlap(TimetableItem a, TimetableItem b) {
-    return a.startTime.isBefore(b.endTime) && a.endTime.isAfter(b.startTime);
-  }
-
-  List<List<TimetableItem>> _assignToLines(List<TimetableItem> items) {
-    List<List<TimetableItem>> lines = [];
-    for (var item in items) {
-      bool placed = false;
-      for (var line in lines) {
-        bool overlap = false;
-        for (var existingItem in line) {
-          if (_hasOverlap(item, existingItem)) {
-            overlap = true;
-            break;
-          }
-        }
-        if (!overlap) {
-          line.add(item);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        lines.add([item]);
-      }
+  String _getDayName(String day) {
+    switch (day.toLowerCase()) {
+      case 'friday': return 'Vendredi';
+      case 'saturday': return 'Samedi';
+      case 'sunday': return 'Dimanche';
+      default: return day;
     }
-    return lines;
   }
 
-  Widget _buildTimeScale(DateTime minStartTime, DateTime maxEndTime, double offset) {
-    return Container(
-      height: timeScaleHeight,
-      color: Colors.grey[900],
+  // --- Widgets ---
+  Widget _buildControls() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
       child: Row(
-        children: _buildTimeLabels(minStartTime, maxEndTime),
+        children: [
+          Expanded(
+            child: DropdownButton<String>(
+              value: _selectedDay,
+              items: _days.map((day) {
+                return DropdownMenuItem<String>(
+                  value: day,
+                  child: Text(_getDayName(day)),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() => _selectedDay = newValue);
+                }
+              },
+              hint: const Text('Choisir un jour'),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Row(
+            children: [
+              const Text('Favoris uniquement', style: TextStyle(color: Colors.white)),
+              Switch(
+                value: _showFavoritesOnly,
+                onChanged: (bool value) => setState(() => _showFavoritesOnly = value),
+                activeThumbColor: const Color(0xFF7851A9),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  List<Widget> _buildTimeLabels(DateTime start, DateTime end) {
+  Widget _buildEmptyState() {
+    return Column(
+      children: [
+        _buildControls(),
+        const Expanded(child: Center(child: Text('Aucun DJ à afficher.'))),
+      ],
+    );
+  }
+
+  Widget _buildTimeScale(DateTime minStartTime, DateTime maxEndTime, double offset) {
+    return Container(
+      height: _TimetableConstants.timeScaleHeight,
+      color: Colors.grey[900],
+      child: Row(children: _buildTimeLabels(minStartTime, maxEndTime, offset)),
+    );
+  }
+
+  List<Widget> _buildTimeLabels(DateTime start, DateTime end, double offset) {
     final List<Widget> labels = [];
     final firstFullHour = _nextFullHour(start);
     final minutesToFirstFullHour = firstFullHour.difference(start).inMinutes;
 
     if (minutesToFirstFullHour > 0) {
-      labels.add(SizedBox(width: minutesToFirstFullHour * pixelsPerMinute));
+      labels.add(SizedBox(width: minutesToFirstFullHour * _TimetableConstants.pixelsPerMinute));
     }
 
     DateTime current = firstFullHour;
-    final endTime = DateTime(end.year, end.month, end.day, end.hour, end.minute);
-
-    while (current.isBefore(endTime)) {
+    while (current.isBefore(end)) {
       labels.add(
         SizedBox(
-          width: pixelsPerHour,
+          width: _TimetableConstants.pixelsPerHour,
           child: Align(
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.only(left: 4.0),
-              child: Text(
-                '${current.hour}:00',
-                style: timeScaleTextStyle,
-              ),
+              child: Text('${current.hour}:00', style: _TimetableConstants.timeScaleTextStyle),
             ),
           ),
         ),
@@ -177,7 +216,7 @@ class _TimetablePageState extends State<TimetablePage> {
   }
 
   Widget _buildRegularVerticalLines(double totalWidth, double offset) {
-    const interval = pixelsPerHour;
+    const interval = _TimetableConstants.pixelsPerHour;
     const lineWidth = 0.5;
     final lineCount = (totalWidth / interval).floor();
     final availableWidth = totalWidth - offset;
@@ -194,10 +233,7 @@ class _TimetablePageState extends State<TimetablePage> {
               width: index == lineCount - 1 ? lastLineWidth : interval,
               decoration: const BoxDecoration(
                 border: Border(
-                  left: BorderSide(
-                    color: Colors.white24,
-                    width: lineWidth,
-                  ),
+                  left: BorderSide(color: Colors.white24, width: lineWidth),
                 ),
               ),
             ),
@@ -207,89 +243,7 @@ class _TimetablePageState extends State<TimetablePage> {
     );
   }
 
-  Widget _buildDistrictRow(
-    String district,
-    List<TimetableItem> items,
-    DateTime minStartTime,
-    DateTime maxEndTime,
-  ) {
-    items.sort((a, b) => a.startTime.compareTo(b.startTime));
-    final totalMinutes = maxEndTime.difference(minStartTime).inMinutes;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: districtSpacing),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            district,
-            style: districtTextStyle,
-          ),
-        ),
-        const SizedBox(height: districtSpacing),
-        SizedBox(
-          height: normalTileHeight,
-          width: totalMinutes * pixelsPerMinute,
-          child: Stack(
-            children: items.map((item) {
-              final startMinutes = item.startTime.difference(minStartTime).inMinutes;
-              final left = startMinutes * pixelsPerMinute;
-              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
-              final width = (endMinutes - startMinutes) * pixelsPerMinute;
-
-              return Positioned(
-                left: left,
-                child: SizedBox(
-                  width: width,
-                  height: normalTileHeight,
-                  child: Card(
-                    margin: cardMargin,
-                    color: _favoriteSetIds.contains(item.setId)
-                        ? const Color(0xFF7851A9)
-                        : null,
-                    child: Padding(
-                      padding: cardPadding,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.dj,
-                                  style: djTextStyle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
-                                  style: timeTextStyle,
-                                  maxLines: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Center(
-                            child: FavoriteStar(
-                              isFavorite: _favoriteSetIds.contains(item.setId),
-                              onPressed: () => _toggleFavorite(item),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
+  // --- Build ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -311,242 +265,312 @@ class _TimetablePageState extends State<TimetablePage> {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
             return Center(child: Text('Erreur: ${snapshot.error}'));
-          } else {
-            final timetable = snapshot.data!;
-            for (var item in timetable) {
-              item.isFavorite = _favoriteSetIds.contains(item.setId);
-            }
+          }
 
-            final filteredTimetable = timetable.where((item) => item.day == _selectedDay).toList();
-            final displayItems = _showFavoritesOnly
-                ? filteredTimetable.where((item) => _favoriteSetIds.contains(item.setId)).toList()
-                : filteredTimetable;
+          final timetable = snapshot.data!;
+          _updateFavoriteStatus(timetable);
 
-            if (displayItems.isEmpty) {
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: _selectedDay,
-                            items: _days.map((day) {
-                              return DropdownMenuItem<String>(
-                                value: day,
-                                child: Text(_getDayName(day)),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  _selectedDay = newValue;
-                                });
-                              }
-                            },
-                            hint: const Text('Choisir un jour'),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Row(
-                          children: [
-                            const Text(
-                              'Favoris uniquement',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            Switch(
-                              value: _showFavoritesOnly,
-                              onChanged: (bool value) {
-                                setState(() {
-                                  _showFavoritesOnly = value;
-                                });
-                              },
-                              activeThumbColor: const Color(0xFF7851A9),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Expanded(child: Center(child: Text('Aucun DJ à afficher.'))),
-                ],
-              );
-            }
+          final displayItems = _getFilteredItems(timetable);
+          if (displayItems.isEmpty) {
+            return _buildEmptyState();
+          }
 
-            final allStartTimes = displayItems.map((item) => item.startTime).toList();
-            final allEndTimes = displayItems.map((item) => item.endTime).toList();
-            final minStartTime = allStartTimes.reduce((a, b) => a.isBefore(b) ? a : b);
-            final maxEndTime = allEndTimes.reduce((a, b) => a.isAfter(b) ? a : b);
-            final totalWidth = maxEndTime.difference(minStartTime).inMinutes * pixelsPerMinute;
+          final minStartTime = _getMinStartTime(displayItems);
+          final maxEndTime = _getMaxEndTime(displayItems);
+          final totalWidth = maxEndTime.difference(minStartTime).inMinutes * _TimetableConstants.pixelsPerMinute;
+          final offsetInPixels = _calculateOffset(minStartTime);
 
-            final nextFullHourAfterMin = _nextFullHour(minStartTime);
-            final offsetInMinutes = nextFullHourAfterMin.difference(minStartTime).inMinutes;
-            final offsetInPixels = offsetInMinutes * pixelsPerMinute;
-
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButton<String>(
-                          value: _selectedDay,
-                          items: _days.map((day) {
-                            return DropdownMenuItem<String>(
-                              value: day,
-                              child: Text(_getDayName(day)),
-                            );
-                          }).toList(),
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedDay = newValue;
-                              });
-                            }
-                          },
-                          hint: const Text('Choisir un jour'),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Row(
+          return Column(
+            children: [
+              _buildControls(),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: totalWidth,
+                      child: Stack(
                         children: [
-                          const Text(
-                            'Favoris uniquement',
-                            style: TextStyle(color: Colors.white),
+                          Positioned(
+                            top: _TimetableConstants.timeScaleHeight,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _buildRegularVerticalLines(totalWidth, offsetInPixels),
                           ),
-                          Switch(
-                            value: _showFavoritesOnly,
-                            onChanged: (bool value) {
-                              setState(() {
-                                _showFavoritesOnly = value;
-                              });
-                            },
-                            activeThumbColor: const Color(0xFF7851A9),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTimeScale(minStartTime, maxEndTime, offsetInPixels),
+                              const SizedBox(height: 10),
+                              _showFavoritesOnly
+                                  ? _TimetableFavoritesView(
+                                      items: displayItems,
+                                      totalWidth: totalWidth,
+                                      minStartTime: minStartTime,
+                                      favoriteSetIds: _favoriteSetIds,
+                                      onToggleFavorite: _toggleFavorite,
+                                    )
+                                  : _TimetableDistrictView(
+                                      items: displayItems,
+                                      totalWidth: totalWidth,
+                                      minStartTime: minStartTime,
+                                      favoriteSetIds: _favoriteSetIds,
+                                      onToggleFavorite: _toggleFavorite,
+                                    ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: totalWidth,
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: timeScaleHeight,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: _buildRegularVerticalLines(totalWidth, offsetInPixels),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildTimeScale(minStartTime, maxEndTime, offsetInPixels),
-                                const SizedBox(height: 10),
-                                _showFavoritesOnly
-                                    ? Column(
-                                        children: _assignToLines(displayItems).map((line) {
-                                          return SizedBox(
-                                            height: favoriteTileHeight,
-                                            width: totalWidth,
-                                            child: Stack(
-                                              children: line.map((item) {
-                                                final startMinutes = item.startTime.difference(minStartTime).inMinutes;
-                                                final left = startMinutes * pixelsPerMinute;
-                                                final endMinutes = item.endTime.difference(minStartTime).inMinutes;
-                                                final width = (endMinutes - startMinutes) * pixelsPerMinute;
-
-                                                return Positioned(
-                                                  left: left,
-                                                  child: SizedBox(
-                                                    width: width,
-                                                    height: favoriteTileHeight,
-                                                    child: Card(
-                                                      margin: cardMargin,
-                                                      color: _favoriteSetIds.contains(item.setId)
-                                                          ? const Color(0xFF7851A9)
-                                                          : null,
-                                                      child: Padding(
-                                                        padding: cardPadding,
-                                                        child: Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Column(
-                                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                children: [
-                                                                  Text(
-                                                                    item.dj,
-                                                                    style: djTextStyle,
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  Text(
-                                                                    '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
-                                                                    style: timeTextStyle,
-                                                                    maxLines: 1,
-                                                                  ),
-                                                                  Text(
-                                                                    item.district,
-                                                                    style: districtSubtitleStyle,
-                                                                    maxLines: 1,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                            Center(
-                                                              child: FavoriteStar(
-                                                                isFavorite: _favoriteSetIds.contains(item.setId),
-                                                                onPressed: () => _toggleFavorite(item),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                );
-                                              }).toList(),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      )
-                                    : Column(
-                                        children: [
-                                          for (var districtEntry in {
-                                            for (var item in displayItems)
-                                              item.district: displayItems.where((i) => i.district == item.district).toList()
-                                          }.entries)
-                                            _buildDistrictRow(
-                                              districtEntry.key,
-                                              districtEntry.value,
-                                              minStartTime,
-                                              maxEndTime,
-                                            ),
-                                        ],
-                                      ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ),
                 ),
-              ],
-            );
-          }
+              ),
+            ],
+          );
         },
       ),
     );
+  }
+}
+
+// --- Dedicated Widgets ---
+class _DjCard extends StatelessWidget {
+  final TimetableItem item;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  final double width;
+  final double height;
+
+  const _DjCard({
+    required this.item,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Card(
+        margin: _TimetableConstants.cardMargin,
+        color: isFavorite ? const Color(0xFF7851A9) : null,
+        child: Padding(
+          padding: _TimetableConstants.cardPadding,
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.dj,
+                      style: _TimetableConstants.djTextStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
+                      style: _TimetableConstants.timeTextStyle,
+                      maxLines: 1,
+                    ),
+                    if (height == _TimetableConstants.favoriteTileHeight)
+                      Text(
+                        item.district,
+                        style: _TimetableConstants.districtSubtitleStyle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              Center(
+                child: FavoriteStar(
+                  isFavorite: isFavorite,
+                  onPressed: onToggleFavorite,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime date) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _TimetableDistrictRow extends StatelessWidget {
+  final String district;
+  final List<TimetableItem> items;
+  final double totalWidth;
+  final DateTime minStartTime;
+  final Set<int> favoriteSetIds;
+  final void Function(TimetableItem) onToggleFavorite;
+
+  const _TimetableDistrictRow({
+    required this.district,
+    required this.items,
+    required this.totalWidth,
+    required this.minStartTime,
+    required this.favoriteSetIds,
+    required this.onToggleFavorite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: _TimetableConstants.districtSpacing),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(district, style: _TimetableConstants.districtTextStyle),
+        ),
+        const SizedBox(height: _TimetableConstants.districtSpacing),
+        SizedBox(
+          height: _TimetableConstants.normalTileHeight,
+          width: totalWidth,
+          child: Stack(
+            children: items.map((item) {
+              final startMinutes = item.startTime.difference(minStartTime).inMinutes;
+              final left = startMinutes * _TimetableConstants.pixelsPerMinute;
+              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
+              final width = (endMinutes - startMinutes) * _TimetableConstants.pixelsPerMinute;
+
+              return Positioned(
+                left: left,
+                child: _DjCard(
+                  item: item,
+                  isFavorite: favoriteSetIds.contains(item.setId),
+                  onToggleFavorite: () => onToggleFavorite(item),
+                  width: width,
+                  height: _TimetableConstants.normalTileHeight,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimetableDistrictView extends StatelessWidget {
+  final List<TimetableItem> items;
+  final double totalWidth;
+  final DateTime minStartTime;
+  final Set<int> favoriteSetIds;
+  final void Function(TimetableItem) onToggleFavorite;
+
+  const _TimetableDistrictView({
+    required this.items,
+    required this.totalWidth,
+    required this.minStartTime,
+    required this.favoriteSetIds,
+    required this.onToggleFavorite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final groupedItems = _groupItemsByDistrict(items);
+    return Column(
+      children: groupedItems.entries.map((entry) {
+        return _TimetableDistrictRow(
+          district: entry.key,
+          items: entry.value,
+          totalWidth: totalWidth,
+          minStartTime: minStartTime,
+          favoriteSetIds: favoriteSetIds,
+          onToggleFavorite: onToggleFavorite,
+        );
+      }).toList(),
+    );
+  }
+
+  Map<String, List<TimetableItem>> _groupItemsByDistrict(List<TimetableItem> items) {
+    final Map<String, List<TimetableItem>> grouped = {};
+    for (var item in items) {
+      grouped.putIfAbsent(item.district, () => []).add(item);
+    }
+    return grouped;
+  }
+}
+
+class _TimetableFavoritesView extends StatelessWidget {
+  final List<TimetableItem> items;
+  final double totalWidth;
+  final DateTime minStartTime;
+  final Set<int> favoriteSetIds;
+  final void Function(TimetableItem) onToggleFavorite;
+
+  const _TimetableFavoritesView({
+    required this.items,
+    required this.totalWidth,
+    required this.minStartTime,
+    required this.favoriteSetIds,
+    required this.onToggleFavorite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = _assignToLines(items);
+    return Column(
+      children: lines.map((line) {
+        return SizedBox(
+          height: _TimetableConstants.favoriteTileHeight,
+          width: totalWidth,
+          child: Stack(
+            children: line.map((item) {
+              final startMinutes = item.startTime.difference(minStartTime).inMinutes;
+              final left = startMinutes * _TimetableConstants.pixelsPerMinute;
+              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
+              final width = (endMinutes - startMinutes) * _TimetableConstants.pixelsPerMinute;
+
+              return Positioned(
+                left: left,
+                child: _DjCard(
+                  item: item,
+                  isFavorite: favoriteSetIds.contains(item.setId),
+                  onToggleFavorite: () => onToggleFavorite(item),
+                  width: width,
+                  height: _TimetableConstants.favoriteTileHeight,
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  List<List<TimetableItem>> _assignToLines(List<TimetableItem> items) {
+    List<List<TimetableItem>> lines = [];
+    for (var item in items) {
+      bool placed = false;
+      for (var line in lines) {
+        bool overlap = line.any((existingItem) => _hasOverlap(item, existingItem));
+        if (!overlap) {
+          line.add(item);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        lines.add([item]);
+      }
+    }
+    return lines;
+  }
+
+  bool _hasOverlap(TimetableItem a, TimetableItem b) {
+    return a.startTime.isBefore(b.endTime) && a.endTime.isAfter(b.startTime);
   }
 }

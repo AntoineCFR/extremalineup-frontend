@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'main_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -37,6 +38,9 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
 
       if (userId != null) {
+        await AuthService.saveLogin(username, userId);
+
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -47,13 +51,13 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Utilisateur non trouvé')),
         );
       }
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e')),
       );
@@ -82,6 +86,8 @@ class _LoginPageState extends State<LoginPage> {
                 labelText: 'Nom d\'utilisateur',
                 border: OutlineInputBorder(),
               ),
+              textInputAction: TextInputAction.done, // ✅ Affiche "Done" sur le clavier
+              onSubmitted: (_) => _login(), // ✅ Appelle _login() quand on valide avec le clavier
             ),
             const SizedBox(height: 24),
             ElevatedButton(

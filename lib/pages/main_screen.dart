@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import 'login_page.dart';
 import 'lineup_page.dart';
 import 'timetable_page.dart';
-import 'settings_page.dart';
 
 class MainScreen extends StatefulWidget {
   final String username;
@@ -18,7 +19,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0; // 0: Line-up, 1: Timetable, 2: Settings
+  int _currentIndex = 0; // 0: Line-up, 1: Timetable
   final PageController _pageController = PageController(initialPage: 0);
 
   @override
@@ -27,9 +28,28 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  Future<void> _logout() async {
+    await AuthService.clearLogin();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Extremalineup - ${widget.username}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+            tooltip: 'Se déconnecter',
+          ),
+        ],
+      ),
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) {
@@ -38,9 +58,8 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         children: [
-          LineupPage(username: widget.username, userId: widget.userId), // ✅ Page par défaut
+          LineupPage(username: widget.username, userId: widget.userId),
           TimetablePage(username: widget.username, userId: widget.userId),
-          SettingsPage(username: widget.username, userId: widget.userId),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -59,10 +78,6 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.schedule),
             label: 'Timetable',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
           ),
         ],
       ),

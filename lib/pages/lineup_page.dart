@@ -23,7 +23,7 @@ class _LineupPageState extends State<LineupPage> {
   bool _isLoadingFavorites = true;
   String _selectedDay = 'friday';
   final List<String> _days = const ['friday', 'saturday', 'sunday'];
-  bool _showFavoritesOnly = false; // Toggle pour afficher uniquement les favoris
+  bool _showFavoritesOnly = false;
 
   @override
   void initState() {
@@ -92,6 +92,16 @@ class _LineupPageState extends State<LineupPage> {
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  String _getDjImagePath(String djName) {
+    final normalized = djName
+        .toLowerCase()
+        .replaceAll(' ', '_')
+        .replaceAll('.', '')
+        .replaceAll(RegExp(r'[^\w]'), '');
+        
+    return 'lib/assets/$normalized.jpg';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,17 +129,12 @@ class _LineupPageState extends State<LineupPage> {
               item.isFavorite = _favoriteSetIds.contains(item.setId);
             }
 
-            // Filtre par jour sélectionné
             final filteredTimetable = timetable.where((item) => item.day == _selectedDay).toList();
-
-            // Filtre par favoris si le toggle est activé
             final displayItems = _showFavoritesOnly
                 ? filteredTimetable.where((item) => _favoriteSetIds.contains(item.setId)).toList()
                 : filteredTimetable;
 
-            // ✅ Tri adapté au mode
             if (_showFavoritesOnly) {
-              // Mode favoris : début → fin → district
               displayItems.sort((a, b) {
                 int startCompare = a.startTime.compareTo(b.startTime);
                 if (startCompare != 0) return startCompare;
@@ -138,16 +143,15 @@ class _LineupPageState extends State<LineupPage> {
                 return a.district.compareTo(b.district);
               });
             } else {
-              // Mode normal : district → début
               displayItems.sort((a, b) {
                 int districtCompare = a.district.compareTo(b.district);
                 if (districtCompare != 0) return districtCompare;
                 return a.startTime.compareTo(b.startTime);
               });
             }
+
             return Column(
               children: [
-                // Sélecteur de jour + Toggle
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
@@ -185,7 +189,7 @@ class _LineupPageState extends State<LineupPage> {
                                 _showFavoritesOnly = value;
                               });
                             },
-                            activeThumbColor: const Color(0xFF7851A9), // ✅ activeThumbColor
+                            activeThumbColor: const Color(0xFF7851A9),
                           ),
                         ],
                       ),
@@ -197,7 +201,6 @@ class _LineupPageState extends State<LineupPage> {
                     children: [
                       if (displayItems.isEmpty)
                         const Center(child: Text('Aucun DJ à afficher.')),
-                      // ✅ Mode normal (groupement par district) ou mode favoris (liste simple)
                       _showFavoritesOnly
                           ? Column(
                               children: displayItems.map((item) {
@@ -207,12 +210,18 @@ class _LineupPageState extends State<LineupPage> {
                                       ? const Color(0xFF7851A9)
                                       : null,
                                   child: ListTile(
-                                    // ✅ Conteneur pour la photo à gauche
-                                    leading: Container(
-                                      width: 40, // Largeur fixe pour la photo
-                                      height: 40,
-                                      color: Colors.grey[800], // Fond temporaire (à remplacer par l'image plus tard)
-                                      child: const Icon(Icons.person, color: Colors.white54), // Icône placeholder
+                                    // ✅ PHOTO DU DJ (mode favoris)
+                                    leading: AspectRatio(
+                                      aspectRatio: 1, // ✅ Ratio carré (largeur = hauteur)
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4.0),
+                                        child: Image.asset(
+                                          _getDjImagePath(item.dj),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) =>
+                                              const Icon(Icons.person, color: Colors.white54),
+                                        ),
+                                      ),
                                     ),
                                     title: Text(
                                       item.dj,
@@ -248,7 +257,6 @@ class _LineupPageState extends State<LineupPage> {
                             )
                           : Column(
                               children: [
-                                // ✅ Groupement par district (mode normal)
                                 for (var districtEntry in {
                                   for (var item in displayItems)
                                     item.district: displayItems.where((i) => i.district == item.district).toList()
@@ -274,12 +282,18 @@ class _LineupPageState extends State<LineupPage> {
                                               ? const Color(0xFF7851A9)
                                               : null,
                                           child: ListTile(
-                                            // ✅ Conteneur pour la photo à gauche
-                                            leading: Container(
-                                              width: 40, // Largeur fixe pour la photo
-                                              height: 40,
-                                              color: Colors.grey[800], // Fond temporaire (à remplacer par l'image plus tard)
-                                              child: const Icon(Icons.person, color: Colors.white54), // Icône placeholder
+                                            // ✅ PHOTO DU DJ (mode normal)
+                                            leading: AspectRatio(
+                                              aspectRatio: 1,
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(4.0),
+                                                child: Image.asset(
+                                                  _getDjImagePath(item.dj),
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) =>
+                                                      const Icon(Icons.person, color: Colors.white54),
+                                                ),
+                                              ),
                                             ),
                                             title: Text(
                                               item.dj,

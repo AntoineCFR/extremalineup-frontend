@@ -18,16 +18,15 @@ class TimetablePage extends StatefulWidget {
 }
 
 class _TimetablePageState extends State<TimetablePage> {
-  // CONSTANTES CENTRALISÉES
   static const double pixelsPerMinute = 3.0;
-  static const pixelsPerHour = pixelsPerMinute * 60;
+  static const double pixelsPerHour = pixelsPerMinute * 60;
   static const double normalTileHeight = 63.0;
   static const double favoriteTileHeight = 80.0;
   static const double timeScaleHeight = 40.0;
   static const double districtSpacing = 2.0;
   static const EdgeInsets cardMargin = EdgeInsets.symmetric(vertical: 5, horizontal: 2);
   static const EdgeInsets cardPadding = EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0);
-  // Styles de texte mis à jour
+
   static const TextStyle timeScaleTextStyle = TextStyle(fontSize: 14, color: Colors.white);
   static const TextStyle djTextStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white);
   static const TextStyle timeTextStyle = TextStyle(fontSize: 12, color: Colors.white70);
@@ -38,13 +37,17 @@ class _TimetablePageState extends State<TimetablePage> {
   Set<int> _favoriteSetIds = {};
   String _selectedDay = 'friday';
   final List<String> _days = const ['friday', 'saturday', 'sunday'];
-  bool _showFavoritesOnly = false; // Toggle pour afficher uniquement les favoris
+  bool _showFavoritesOnly = false;
 
   @override
   void initState() {
     super.initState();
     _timetableFuture = ApiService.fetchTimetable();
     _loadFavorites();
+  }
+
+  DateTime _nextFullHour(DateTime date) {
+    return date.minute == 0 ? date : DateTime(date.year, date.month, date.day, date.hour + 1);
   }
 
   Future<void> _loadFavorites() async {
@@ -101,12 +104,10 @@ class _TimetablePageState extends State<TimetablePage> {
     });
   }
 
-  // ✅ Fonction pour vérifier si deux créneaux se chevauchent
   bool _hasOverlap(TimetableItem a, TimetableItem b) {
     return a.startTime.isBefore(b.endTime) && a.endTime.isAfter(b.startTime);
   }
 
-  // ✅ Fonction pour assigner les créneaux à des lignes sans chevauchement
   List<List<TimetableItem>> _assignToLines(List<TimetableItem> items) {
     List<List<TimetableItem>> lines = [];
     for (var item in items) {
@@ -132,7 +133,7 @@ class _TimetablePageState extends State<TimetablePage> {
     return lines;
   }
 
-  Widget _buildTimeScale(DateTime minStartTime, DateTime maxEndTime) {
+  Widget _buildTimeScale(DateTime minStartTime, DateTime maxEndTime, double offset) {
     return Container(
       height: timeScaleHeight,
       color: Colors.grey[900],
@@ -144,18 +145,28 @@ class _TimetablePageState extends State<TimetablePage> {
 
   List<Widget> _buildTimeLabels(DateTime start, DateTime end) {
     final List<Widget> labels = [];
+    final firstFullHour = _nextFullHour(start);
+    final minutesToFirstFullHour = firstFullHour.difference(start).inMinutes;
 
-    DateTime current = DateTime(start.year, start.month, start.day, start.hour);
+    if (minutesToFirstFullHour > 0) {
+      labels.add(SizedBox(width: minutesToFirstFullHour * pixelsPerMinute));
+    }
+
+    DateTime current = firstFullHour;
     final endTime = DateTime(end.year, end.month, end.day, end.hour, end.minute);
 
-    while (current.isBefore(endTime) || current == endTime) {
+    while (current.isBefore(endTime)) {
       labels.add(
         SizedBox(
           width: pixelsPerHour,
-          child: Center(
-            child: Text(
-              '${current.hour}:00',
-              style: timeScaleTextStyle, // ✅ Taille 14
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4.0),
+              child: Text(
+                '${current.hour}:00',
+                style: timeScaleTextStyle,
+              ),
             ),
           ),
         ),
@@ -165,25 +176,33 @@ class _TimetablePageState extends State<TimetablePage> {
     return labels;
   }
 
-  Widget _buildRegularVerticalLines(double totalWidth) {
-    const interval = pixelsPerHour; // ✅ Intervalle en pixels (ex: 20)
-    const lineWidth = 0.5; // ✅ Épaisseur de la ligne
-    final lineCount = (totalWidth / interval).ceil() + 1; // ✅ Nombre de lignes
+  Widget _buildRegularVerticalLines(double totalWidth, double offset) {
+    const interval = pixelsPerHour;
+    const lineWidth = 0.5;
+    final lineCount = (totalWidth / interval).floor();
+    final availableWidth = totalWidth - offset;
+    final lastLineWidth = availableWidth - (lineCount - 1) * interval;
 
-    return Row(
-      children: List.generate(
-        lineCount,
-        (index) => Container(
-          width: interval, // ✅ Largeur de chaque "case"
-          decoration: const BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: Colors.white24, // ✅ Couleur discrète
-                width: lineWidth, // ✅ Épaisseur
+    return SizedBox(
+      width: totalWidth,
+      child: Row(
+        children: [
+          SizedBox(width: offset),
+          ...List.generate(
+            lineCount,
+            (index) => Container(
+              width: index == lineCount - 1 ? lastLineWidth : interval,
+              decoration: const BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: Colors.white24,
+                    width: lineWidth,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -205,25 +224,25 @@ class _TimetablePageState extends State<TimetablePage> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             district,
-            style: districtTextStyle, // ✅ Taille 12
+            style: districtTextStyle,
           ),
         ),
         const SizedBox(height: districtSpacing),
         SizedBox(
-          height: normalTileHeight, // ✅ Hauteur 63
+          height: normalTileHeight,
           width: totalMinutes * pixelsPerMinute,
           child: Stack(
             children: items.map((item) {
               final startMinutes = item.startTime.difference(minStartTime).inMinutes;
-              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
               final left = startMinutes * pixelsPerMinute;
+              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
               final width = (endMinutes - startMinutes) * pixelsPerMinute;
 
               return Positioned(
                 left: left,
                 child: SizedBox(
                   width: width,
-                  height: normalTileHeight, // ✅ Hauteur 63
+                  height: normalTileHeight,
                   child: Card(
                     margin: cardMargin,
                     color: _favoriteSetIds.contains(item.setId)
@@ -238,14 +257,12 @@ class _TimetablePageState extends State<TimetablePage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // ✅ DJ : taille 14, tronqué si trop long
                                 Text(
                                   item.dj,
                                   style: djTextStyle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                // ✅ Heure : taille 12
                                 Text(
                                   '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
                                   style: timeTextStyle,
@@ -300,10 +317,7 @@ class _TimetablePageState extends State<TimetablePage> {
               item.isFavorite = _favoriteSetIds.contains(item.setId);
             }
 
-            // Filtre par jour sélectionné
             final filteredTimetable = timetable.where((item) => item.day == _selectedDay).toList();
-
-            // Filtre par favoris si le toggle est activé
             final displayItems = _showFavoritesOnly
                 ? filteredTimetable.where((item) => _favoriteSetIds.contains(item.setId)).toList()
                 : filteredTimetable;
@@ -360,11 +374,15 @@ class _TimetablePageState extends State<TimetablePage> {
               );
             }
 
-            // Calcule minStartTime et maxEndTime pour l'échelle temporelle
             final allStartTimes = displayItems.map((item) => item.startTime).toList();
             final allEndTimes = displayItems.map((item) => item.endTime).toList();
             final minStartTime = allStartTimes.reduce((a, b) => a.isBefore(b) ? a : b);
             final maxEndTime = allEndTimes.reduce((a, b) => a.isAfter(b) ? a : b);
+            final totalWidth = maxEndTime.difference(minStartTime).inMinutes * pixelsPerMinute;
+
+            final nextFullHourAfterMin = _nextFullHour(minStartTime);
+            final offsetInMinutes = nextFullHourAfterMin.difference(minStartTime).inMinutes;
+            final offsetInPixels = offsetInMinutes * pixelsPerMinute;
 
             return Column(
               children: [
@@ -417,107 +435,109 @@ class _TimetablePageState extends State<TimetablePage> {
                     scrollDirection: Axis.vertical,
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: Stack( // ✅ Stack pour superposer les lignes et le contenu
-                        children: [
-                          // ✅ Lignes verticales régulières (tous les 20px)
-                          Positioned.fill(
-                            top: timeScaleHeight, // ✅ Commence sous le bandeau
-                              left: pixelsPerHour / 2, // ✅ Décalage de pixelsPerHour / 2 pour aligner avec le centre des étiquettes
-                            child: _buildRegularVerticalLines(
-                              maxEndTime.difference(minStartTime).inMinutes * pixelsPerMinute,
+                      child: SizedBox(
+                        width: totalWidth,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              top: timeScaleHeight,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: _buildRegularVerticalLines(totalWidth, offsetInPixels),
                             ),
-                          ),
-                          // Contenu principal (bandeau + tuiles)
-                          Column(
-                            children: [
-                              _buildTimeScale(minStartTime, maxEndTime),
-                              const SizedBox(height: 10),
-                              _showFavoritesOnly
-                                  ? Column(
-                                      children: _assignToLines(displayItems).map((line) {
-                                        return SizedBox(
-                                          height: favoriteTileHeight,
-                                          width: maxEndTime.difference(minStartTime).inMinutes * pixelsPerMinute,
-                                          child: Stack(
-                                            children: line.map((item) {
-                                              final startMinutes = item.startTime.difference(minStartTime).inMinutes;
-                                              final endMinutes = item.endTime.difference(minStartTime).inMinutes;
-                                              final left = startMinutes * pixelsPerMinute;
-                                              final width = (endMinutes - startMinutes) * pixelsPerMinute;
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTimeScale(minStartTime, maxEndTime, offsetInPixels),
+                                const SizedBox(height: 10),
+                                _showFavoritesOnly
+                                    ? Column(
+                                        children: _assignToLines(displayItems).map((line) {
+                                          return SizedBox(
+                                            height: favoriteTileHeight,
+                                            width: totalWidth,
+                                            child: Stack(
+                                              children: line.map((item) {
+                                                final startMinutes = item.startTime.difference(minStartTime).inMinutes;
+                                                final left = startMinutes * pixelsPerMinute;
+                                                final endMinutes = item.endTime.difference(minStartTime).inMinutes;
+                                                final width = (endMinutes - startMinutes) * pixelsPerMinute;
 
-                                              return Positioned(
-                                                left: left,
-                                                child: SizedBox(
-                                                  width: width,
-                                                  height: favoriteTileHeight,
-                                                  child: Card(
-                                                    margin: cardMargin,
-                                                    color: _favoriteSetIds.contains(item.setId)
-                                                        ? const Color(0xFF7851A9)
-                                                        : null,
-                                                    child: Padding(
-                                                      padding: cardPadding,
-                                                      child: Row(
-                                                        children: [
-                                                          Expanded(
-                                                            child: Column(
-                                                              mainAxisAlignment: MainAxisAlignment.center,
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              children: [
-                                                                Text(
-                                                                  item.dj,
-                                                                  style: djTextStyle,
-                                                                  maxLines: 1,
-                                                                  overflow: TextOverflow.ellipsis,
-                                                                ),
-                                                                Text(
-                                                                  '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
-                                                                  style: timeTextStyle,
-                                                                  maxLines: 1,
-                                                                ),
-                                                                Text(
-                                                                  item.district,
-                                                                  style: districtSubtitleStyle,
-                                                                  maxLines: 1,
-                                                                  overflow: TextOverflow.ellipsis,
-                                                                ),
-                                                              ],
+                                                return Positioned(
+                                                  left: left,
+                                                  child: SizedBox(
+                                                    width: width,
+                                                    height: favoriteTileHeight,
+                                                    child: Card(
+                                                      margin: cardMargin,
+                                                      color: _favoriteSetIds.contains(item.setId)
+                                                          ? const Color(0xFF7851A9)
+                                                          : null,
+                                                      child: Padding(
+                                                        padding: cardPadding,
+                                                        child: Row(
+                                                          children: [
+                                                            Expanded(
+                                                              child: Column(
+                                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                children: [
+                                                                  Text(
+                                                                    item.dj,
+                                                                    style: djTextStyle,
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  Text(
+                                                                    '${_formatTime(item.startTime)} - ${_formatTime(item.endTime)}',
+                                                                    style: timeTextStyle,
+                                                                    maxLines: 1,
+                                                                  ),
+                                                                  Text(
+                                                                    item.district,
+                                                                    style: districtSubtitleStyle,
+                                                                    maxLines: 1,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                ],
+                                                              ),
                                                             ),
-                                                          ),
-                                                          Center(
-                                                            child: FavoriteStar(
-                                                              isFavorite: _favoriteSetIds.contains(item.setId),
-                                                              onPressed: () => _toggleFavorite(item),
+                                                            Center(
+                                                              child: FavoriteStar(
+                                                                isFavorite: _favoriteSetIds.contains(item.setId),
+                                                                onPressed: () => _toggleFavorite(item),
+                                                              ),
                                                             ),
-                                                          ),
-                                                        ],
+                                                          ],
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    )
-                                  : Column(
-                                      children: [
-                                        for (var districtEntry in {
-                                          for (var item in displayItems)
-                                            item.district: displayItems.where((i) => i.district == item.district).toList()
-                                        }.entries)
-                                          _buildDistrictRow(
-                                            districtEntry.key,
-                                            districtEntry.value,
-                                            minStartTime,
-                                            maxEndTime,
-                                          ),
-                                      ],
-                                    ),
-                            ],
-                          ),
-                        ],
+                                                );
+                                              }).toList(),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      )
+                                    : Column(
+                                        children: [
+                                          for (var districtEntry in {
+                                            for (var item in displayItems)
+                                              item.district: displayItems.where((i) => i.district == item.district).toList()
+                                          }.entries)
+                                            _buildDistrictRow(
+                                              districtEntry.key,
+                                              districtEntry.value,
+                                              minStartTime,
+                                              maxEndTime,
+                                            ),
+                                        ],
+                                      ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

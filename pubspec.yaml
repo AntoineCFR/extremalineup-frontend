@@ -21,3 +21,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true  # Active les widgets Material Design
+  assets:
+    - lib/assets/

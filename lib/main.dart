@@ -1,12 +1,12 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'services/auth_service.dart';
 import 'services/app_data_manager.dart';
-import 'pages/login_page.dart';
+import 'services/local_storage_service.dart'; // ✅ Ajoute cet import
 import 'pages/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LocalStorageService().init(); // ✅ Initialise SharedPreferences AVANT tout
   runApp(const MyApp());
 }
 
@@ -25,7 +25,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // ✅ Initialise AppDataManager avec le GlobalKey
     AppDataManager().setScaffoldMessengerKey(scaffoldMessengerKey);
   }
 
@@ -47,25 +46,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'Extrema Outdoor 2026',
       theme: ThemeData.dark(),
-      scaffoldMessengerKey: scaffoldMessengerKey, // ✅ Assigne le GlobalKey
-      home: FutureBuilder<Map<String, dynamic>?>(
-        future: AuthService.getSavedLogin(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasData && snapshot.data != null) {
-            final loginData = snapshot.data!;
-            return SplashScreen(
-              userId: loginData['userId'],
-              username: loginData['username'],
-            );
-          }
-          return const LoginPage();
-        },
-      ),
+      scaffoldMessengerKey: scaffoldMessengerKey,
+      home: const SplashScreen(),
     );
   }
 }

@@ -1,7 +1,8 @@
+// lib/pages/login_page.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
-import 'main_screen.dart';
+import 'splash_login.dart'; // ✅ Import ajouté pour SplashLogin
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,12 +42,13 @@ class _LoginPageState extends State<LoginPage> {
         await AuthService.saveLogin(username, userId);
 
         if (!mounted) return;
+        // ✅ Redirige vers SplashLogin (au lieu de MainScreen)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => MainScreen(
-              username: username,
+            builder: (context) => SplashLogin(
               userId: userId,
+              username: username,
             ),
           ),
         );
@@ -86,8 +88,8 @@ class _LoginPageState extends State<LoginPage> {
                 labelText: 'Nom d\'utilisateur',
                 border: OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.done, // ✅ Affiche "Done" sur le clavier
-              onSubmitted: (_) => _login(), // ✅ Appelle _login() quand on valide avec le clavier
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _login(),
             ),
             const SizedBox(height: 24),
             ElevatedButton(

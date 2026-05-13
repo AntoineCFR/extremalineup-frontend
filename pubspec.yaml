@@ -1,4 +1,4 @@
-name: extrema_lineup_mobileapp  # Nom de ton appli (sans espaces, en snake_case)
+name: extremalineup  # Nom de ton appli (sans espaces, en snake_case)
 description: Une appli pour consulter le lineup de l'événement Extrema.
 
 # Version de l'appli (format : major.minor.patch)

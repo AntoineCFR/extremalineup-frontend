@@ -40,6 +40,21 @@ class TimetablePage extends StatefulWidget {
 // --- State ---
 class _TimetablePageState extends State<TimetablePage> {
   final List<String> _days = const ['friday', 'saturday', 'sunday'];
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
 
   void _toggleFavorite(TimetableItem item) {
     AppDataManager().toggleFavorite(item.setId);
@@ -50,12 +65,14 @@ class _TimetablePageState extends State<TimetablePage> {
     if (newValue != null) {
       AppDataManager().setSelectedDay(newValue);
       setState(() {});
+      _scrollToTop();
     }
   }
 
   void _onShowFavoritesOnlyChanged(bool value) {
     AppDataManager().setShowFavoritesOnly(value);
     setState(() {});
+    _scrollToTop();
   }
 
   String _getDayName(String day) {
@@ -241,6 +258,7 @@ class _TimetablePageState extends State<TimetablePage> {
           _buildControls(),
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               scrollDirection: Axis.vertical,
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,

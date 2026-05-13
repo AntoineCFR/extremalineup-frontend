@@ -3,7 +3,7 @@ import '../models/timetable_item.dart';
 import '../services/app_data_manager.dart';
 import '../widgets/favorite_star.dart';
 import '../utils/utils.dart';
-import 'djprofilepage.dart'; // Import de la page DJProfilePage
+import 'djprofilepage.dart';
 
 class LineupPage extends StatefulWidget {
   final String username;
@@ -21,6 +21,21 @@ class LineupPage extends StatefulWidget {
 
 class _LineupPageState extends State<LineupPage> {
   final List<String> _days = const ['friday', 'saturday', 'sunday'];
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
 
   void _toggleFavorite(TimetableItem item) {
     AppDataManager().toggleFavorite(item.setId);
@@ -31,15 +46,16 @@ class _LineupPageState extends State<LineupPage> {
     if (newValue != null) {
       AppDataManager().setSelectedDay(newValue);
       setState(() {});
+      _scrollToTop();
     }
   }
 
   void _onShowFavoritesOnlyChanged(bool value) {
     AppDataManager().setShowFavoritesOnly(value);
     setState(() {});
+    _scrollToTop();
   }
 
-  // Fonction pour construire une tuile DJ (réutilisée pour les deux modes d'affichage)
   Widget _buildDjTile(TimetableItem item, BuildContext context) {
     final favoriteSetIds = AppDataManager().favoriteSetIds;
     return Card(
@@ -47,18 +63,17 @@ class _LineupPageState extends State<LineupPage> {
       color: favoriteSetIds.contains(item.setId) ? const Color(0xFF7851A9) : null,
       child: ListTile(
         onTap: () {
-          // Navigation vers la fiche DJ avec les données nécessaires
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => DJProfilePage(
                 djData: {
                   'name': item.dj,
-                  'bio': item.bio, // Assure-toi que TimetableItem a un champ 'bio'
-                  'spotify_link': item.spotifyLink, // Champ 'spotifyLink' dans TimetableItem
-                  'soundcloud_link': item.soundcloudLink, // Champ 'soundcloudLink'
-                  'instagram_link': item.instagramLink, // Champ 'instagramLink'
-                  'image_link': AppUtils.getDjImagePath(item.dj), // Chemin local
+                  'bio': item.bio,
+                  'spotify_link': item.spotifyLink,
+                  'soundcloud_link': item.soundcloudLink,
+                  'instagram_link': item.instagramLink,
+                  'image_link': AppUtils.getDjImagePath(item.dj),
                 },
               ),
             ),
@@ -121,7 +136,6 @@ class _LineupPageState extends State<LineupPage> {
         ? filteredTimetable.where((item) => favoriteSetIds.contains(item.setId)).toList()
         : filteredTimetable;
 
-    // Tri des items
     displayItems.sort((a, b) {
       if (showFavoritesOnly) {
         int startCompare = a.startTime.compareTo(b.startTime);
@@ -179,6 +193,7 @@ class _LineupPageState extends State<LineupPage> {
           ),
           Expanded(
             child: ListView(
+              controller: _scrollController,
               children: [
                 if (displayItems.isEmpty)
                   const Center(child: Text('Aucun DJ à afficher.')),

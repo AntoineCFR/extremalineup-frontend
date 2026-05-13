@@ -18,7 +18,7 @@ class AppDataManager {
   int? _userId;
   String _selectedDay = 'friday';
   bool _showFavoritesOnly = false;
-  GlobalKey<ScaffoldMessengerState>? _scaffoldMessengerKey; // ✅ GlobalKey pour les messages
+  GlobalKey<ScaffoldMessengerState>? _scaffoldMessengerKey;
 
   // Setter pour le GlobalKey
   void setScaffoldMessengerKey(GlobalKey<ScaffoldMessengerState> key) {
@@ -36,6 +36,7 @@ class AppDataManager {
         ),
       );
     }
+    debugPrint('⚠️ [AppDataManager] $message');
   }
 
   // Getters
@@ -43,26 +44,48 @@ class AppDataManager {
   Set<int> get favoriteSetIds => _favoriteSetIds;
   String get selectedDay => _selectedDay;
   bool get showFavoritesOnly => _showFavoritesOnly;
+  int? get userId => _userId;
 
-  // Initialisation
-  Future<void> init(int userId) async {
-    _userId = userId;
-    await LocalStorageService().init();
-
+  // Méthodes de chargement séparées
+  Future<void> loadTimetable() async {
     try {
       _timetable = await ApiService.fetchTimetable();
+      await LocalStorageService().saveTimetable(_timetable);
+    } catch (e) {
+      _showErrorMessage('Impossible de charger la timetable depuis le serveur.');
+      _timetable = await LocalStorageService().getTimetable();
+      rethrow; // ✅ Relance l'erreur pour que SplashScreen l'attrape
+    }
+  }
+
+  Future<void> loadFavorites(int userId) async {
+    try {
+      _userId = userId;
       final serverFavorites = await ApiService.fetchFavorites(userId);
       _favoriteSetIds = serverFavorites;
       await LocalStorageService().saveFavorites(_favoriteSetIds);
-      _selectedDay = await LocalStorageService().getSelectedDay();
-      _showFavoritesOnly = await LocalStorageService().getShowFavoritesOnly();
     } catch (e) {
-      _showErrorMessage('Impossible de charger les données depuis le serveur. Utilisation des données locales.');
-      _timetable = await LocalStorageService().getTimetable();
+      _showErrorMessage('Impossible de charger les favoris depuis le serveur.');
       _favoriteSetIds = await LocalStorageService().getFavorites();
-      _selectedDay = await LocalStorageService().getSelectedDay();
-      _showFavoritesOnly = await LocalStorageService().getShowFavoritesOnly();
+      rethrow; // ✅ Relance l'erreur pour que SplashLogin l'attrape
     }
+  }
+
+  // Initialisation (pour compatibilité)
+  Future<void> init(int userId) async {
+    await loadTimetable();
+    await loadFavorites(userId);
+    _selectedDay = await LocalStorageService().getSelectedDay();
+    _showFavoritesOnly = await LocalStorageService().getShowFavoritesOnly();
+  }
+
+  // Réinitialisation des données
+  void reset() {
+    _timetable = [];
+    _favoriteSetIds = {};
+    _userId = null;
+    _selectedDay = 'friday';
+    _showFavoritesOnly = false;
   }
 
   // Méthodes pour modifier les données

@@ -26,6 +26,11 @@ class DJProfilePage extends StatelessWidget {
       {'name': 'instagram', 'icon': FontAwesomeIcons.instagram, 'url': djData['instagram_link']},
     ];
 
+    // Filtre les réseaux sociaux avec URL valide
+    final validSocialMedia = socialMedia
+        .where((social) => social['url'] != null && social['url']!.isNotEmpty)
+        .toList();
+
     return Scaffold(
       appBar: AppBar(title: Text(djData['name'])),
       body: SingleChildScrollView(
@@ -33,10 +38,10 @@ class DJProfilePage extends StatelessWidget {
           children: [
             SizedBox(
               width: double.infinity,
-              height: 200,
               child: Image.asset(
                 imagePath,
-                fit: BoxFit.cover,
+                fit: BoxFit.fitWidth,
+                alignment: Alignment.topCenter,
                 errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
               ),
             ),
@@ -48,41 +53,45 @@ class DJProfilePage extends StatelessWidget {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
-            const SizedBox(height: 24),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                'Réseaux sociaux :',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // Affiche le titre et les icônes UNIQUEMENT si des réseaux sont disponibles
+            if (validSocialMedia.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'Réseaux sociaux :',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: socialMedia.map((social) {
-                if (social['url'] == null || social['url']!.isEmpty) {
-                  return const SizedBox();
-                }
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: IconButton(
-                    icon: FaIcon(social['icon'] as IconData),
-                    iconSize: 32,
-                    onPressed: () async {
-                      // Solution finale : Utilisation de maybeOf + vérification
-                      final messenger = ScaffoldMessenger.maybeOf(context);
-                      if (await canLaunchUrl(Uri.parse(social['url']!))) {
-                        await launchUrl(Uri.parse(social['url']!));
-                      } else if (messenger != null) {
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Impossible d\'ouvrir ${social['url']!}')),
-                        );
-                      }
-                    },
-                  ),
-                );
-              }).toList(),
-            ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 20,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: validSocialMedia.map((social) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: IconButton(
+                        icon: FaIcon(social['icon'] as IconData),
+                        iconSize: 32,
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.maybeOf(context);
+                          if (await canLaunchUrl(Uri.parse(social['url']!))) {
+                            await launchUrl(Uri.parse(social['url']!));
+                          } else if (messenger != null) {
+                            messenger.showSnackBar(
+                              SnackBar(content: Text('Impossible d\'ouvrir ${social['url']!}')),
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ],
         ),
       ),

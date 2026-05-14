@@ -4,7 +4,7 @@ workflows:
     environment:
       flutter: stable
     integrations:
-      app_store_connect: "integration"
+      app_store_connect: "Apple Key"
     scripts:
       - flutter pub get
       - flutter build ios --release

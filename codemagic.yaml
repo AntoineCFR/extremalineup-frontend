@@ -3,9 +3,11 @@ workflows:
     name: iOS Build
     environment:
       flutter: stable
+    integrations:
+      app_store_connect: "integration"
     scripts:
       - flutter pub get
       - flutter build ios --release
     publishing:
       app_store_connect:
-        auth: integration
+        auth: "integration"

@@ -1,0 +1,13 @@
+workflows:
+  ios-build:
+    name: iOS Build
+    environment: flutter
+    scripts:
+      - flutter pub get
+      - flutter build ios --release
+    publishing:
+      app_store_connect:
+        auth: integration
+        app_id: com.AntoineCFR.extremalineup
+        certificate: extremalineup_cert_p12
+        profile_type: IOS_APP_ADHOC
